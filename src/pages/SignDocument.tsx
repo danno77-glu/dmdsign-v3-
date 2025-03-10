@@ -8,7 +8,7 @@ import { Logo } from '../components/Logo';
 import { QRCode } from 'react-qr-code';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation';
+import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation'; // Import new component
 
 interface Template {
   id: string;
@@ -220,7 +220,7 @@ export const SignDocument: React.FC = () => {
         }
     };
 
-const handleSignatureSave = (signatureData: string) => {
+const handleSignatureSave = async (signatureData: string) => { // Made async
     setFormValues(prev => ({
       ...prev,
       [activeField!]: signatureData
@@ -229,8 +229,8 @@ const handleSignatureSave = (signatureData: string) => {
     setActiveField(null);
     setShowQRCode(false);
 
-    // Call handleSave directly after updating formValues
-    handleSave();
+    // Await the handleSave function
+    await handleSave();
 };
 
   const handleInputChange = (field: FormField, value: string) => {
@@ -256,7 +256,7 @@ const handleSignatureSave = (signatureData: string) => {
     return true;
   };
 
-const handleSave = async () => {
+const handleSave = async () => { // Made async
   if (!template || !templateId) return;
   if (!validateForm()) return;
 
