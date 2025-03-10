@@ -8,7 +8,7 @@ import { Logo } from '../components/Logo';
 import { QRCode } from 'react-qr-code';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation'; // Import new component
+import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation';
 
 interface Template {
   id: string;
@@ -220,20 +220,18 @@ export const SignDocument: React.FC = () => {
         }
     };
 
-    const handleSignatureSave = (signatureData: string) => {
-        setFormValues(prev => ({
-          ...prev,
-          [activeField!]: signatureData
-        }));
-        setShowSignaturePad(false);
-        setActiveField(null);
-        setShowQRCode(false);
-      
-        // If on mobile, set mobileSignatureComplete to true
-        if (isMobile) {
-          setMobileSignatureComplete(true);
-        }
-      };
+const handleSignatureSave = (signatureData: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      [activeField!]: signatureData
+    }));
+    setShowSignaturePad(false);
+    setActiveField(null);
+    setShowQRCode(false);
+
+    // Call handleSave directly after updating formValues
+    handleSave();
+};
 
   const handleInputChange = (field: FormField, value: string) => {
     setFormValues(prev => ({
@@ -258,41 +256,45 @@ export const SignDocument: React.FC = () => {
     return true;
   };
 
-  const handleSave = async () => {
-    if (!template || !templateId) return;
-    if (!validateForm()) return;
+const handleSave = async () => {
+  if (!template || !templateId) return;
+  if (!validateForm()) return;
 
-    setIsSaving(true);
-    setError(null);
+  setIsSaving(true);
+  setError(null);
 
-    try {
-      const { data, error: saveError } = await supabase
-        .from('signed_documents')
-        .insert([{
-          template_id: templateId,
-          form_values: formValues,
-          user_id: null
-        }])
-        .select();
+  try {
+    const { data, error: saveError } = await supabase
+      .from('signed_documents')
+      .insert([{
+        template_id: templateId,
+        form_values: formValues,
+        user_id: null
+      }])
+      .select();
 
-      if (saveError) throw saveError;
+    if (saveError) throw saveError;
 
-      if (data && data.length > 0 && data[0].id) {
-        const documentId = data[0].id;
-        const newSignedDocument = await getSignedDocument(documentId);
-        setSignedDocument(newSignedDocument);
-        setSuccess(true); // Set success to true only on desktop
-      } else {
-        throw new Error("Failed to retrieve the signed document ID.");
+    if (data && data.length > 0 && data[0].id) {
+      const documentId = data[0].id;
+      const newSignedDocument = await getSignedDocument(documentId);
+      setSignedDocument(newSignedDocument);
+
+      // If on mobile, set mobileSignatureComplete to true AFTER successful save
+      if (isMobile) {
+        setMobileSignatureComplete(true);
       }
-
-    } catch (err) {
-      console.error('Error saving document:', err);
-      setError('Failed to save the document. Please try again.');
-    } finally {
-      setIsSaving(false);
+    } else {
+      throw new Error("Failed to retrieve the signed document ID.");
     }
-  };
+
+  } catch (err) {
+    console.error('Error saving document:', err);
+    setError('Failed to save the document. Please try again.');
+  } finally {
+    setIsSaving(false);
+  }
+};
 
     const handleCancelSignature = () => {
         setShowSignaturePad(false);
@@ -313,32 +315,32 @@ export const SignDocument: React.FC = () => {
     }
   };
 
-// Subscribe to real-time changes on the signed_documents table
-useEffect(() => {
-    const channel = supabase
-    .channel('public:signed_documents')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signed_documents' }, async (payload) => {
-        // Check if the new record is for the current template
-        if (payload.new.template_id === templateId) {
-            const updatedDocument = await getSignedDocument(payload.new.id);
-            if(updatedDocument) {
-                setSignedDocument(updatedDocument);
-                // Update formValues with the new signature, if present
-                setFormValues(prevFormValues => ({
-                    ...prevFormValues,
-                    ...updatedDocument.form_values,
-                }));
-                setSuccess(true); // Set success to true when a new document is inserted
+    // Subscribe to real-time changes on the signed_documents table
+    useEffect(() => {
+        const channel = supabase
+        .channel('public:signed_documents')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signed_documents' }, async (payload) => {
+            // Check if the new record is for the current template
+            if (payload.new.template_id === templateId) {
+                const updatedDocument = await getSignedDocument(payload.new.id);
+                if(updatedDocument) {
+                    setSignedDocument(updatedDocument);
+                    // Update formValues with the new signature, if present
+                    setFormValues(prevFormValues => ({
+                        ...prevFormValues,
+                        ...updatedDocument.form_values,
+                    }));
+                    setSuccess(true); // Set success to true when a new document is inserted
+                }
+
             }
+        })
+        .subscribe()
 
-        }
-    })
-    .subscribe()
-
-    return () => {
-        supabase.removeChannel(channel);
-    };
-}, [templateId]);
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [templateId]);
 
 
     if (isMobile && isSigningMode) {
