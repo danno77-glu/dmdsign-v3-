@@ -8,7 +8,7 @@ import { Logo } from '../components/Logo';
 import { QRCode } from 'react-qr-code';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation'; // Import new component
+import { MobileSignatureConfirmation } from '../components/MobileSignatureConfirmation';
 
 interface Template {
   id: string;
@@ -220,7 +220,7 @@ export const SignDocument: React.FC = () => {
         }
     };
 
-const handleSignatureSave = async (signatureData: string) => { // Made async
+const handleSignatureSave = (signatureData: string) => {
     setFormValues(prev => ({
       ...prev,
       [activeField!]: signatureData
@@ -228,9 +228,6 @@ const handleSignatureSave = async (signatureData: string) => { // Made async
     setShowSignaturePad(false);
     setActiveField(null);
     setShowQRCode(false);
-
-    // Await the handleSave function
-    await handleSave();
 };
 
   const handleInputChange = (field: FormField, value: string) => {
@@ -256,7 +253,7 @@ const handleSignatureSave = async (signatureData: string) => { // Made async
     return true;
   };
 
-const handleSave = async () => { // Made async
+const handleSave = async () => {
   if (!template || !templateId) return;
   if (!validateForm()) return;
 
@@ -315,32 +312,30 @@ const handleSave = async () => { // Made async
     }
   };
 
-    // Subscribe to real-time changes on the signed_documents table
-    useEffect(() => {
-        const channel = supabase
+// Subscribe to real-time changes on the signed_documents table and await getSignedDocument
+useEffect(() => {
+    const channel = supabase
         .channel('public:signed_documents')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'signed_documents' }, async (payload) => {
-            // Check if the new record is for the current template
             if (payload.new.template_id === templateId) {
+                // AWAIT the getSignedDocument call
                 const updatedDocument = await getSignedDocument(payload.new.id);
-                if(updatedDocument) {
+                if (updatedDocument) {
                     setSignedDocument(updatedDocument);
-                    // Update formValues with the new signature, if present
                     setFormValues(prevFormValues => ({
                         ...prevFormValues,
                         ...updatedDocument.form_values,
                     }));
-                    setSuccess(true); // Set success to true when a new document is inserted
+                    setSuccess(true); // Set success to true when a new document is inserted and fetched
                 }
-
             }
         })
-        .subscribe()
+        .subscribe();
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [templateId]);
+    return () => {
+        supabase.removeChannel(channel);
+    };
+}, [templateId]);
 
 
     if (isMobile && isSigningMode) {
